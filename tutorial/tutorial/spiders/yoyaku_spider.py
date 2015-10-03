@@ -51,6 +51,7 @@ class JDramaSpider(scrapy.Spider):
                                                callback=self.get_stadium_list)
 
     def get_stadium_list(self, response):
+        self.create_folder()
         # for stadium in response.css("div.bottom button.f_box"):
         #     select_data = self.get_select_data(stadium.css("::attr(onclick)")[0].extract())
         #     filename = "court" + str(self.index_court) + ".txt"
@@ -67,7 +68,7 @@ class JDramaSpider(scrapy.Spider):
         #                                            meta={"index_court": self.index_court})
         #     self.dict_court[self.index_court] = stadium.css("::text")[0].extract()
         #     self.index_court += 1
-        self.create_folder()
+
         self.dict_court[self.index_court] = "一之江"
         select_data = "120"
         filename = self.path + "/" + "court" + str(self.index_court) + ".txt"
