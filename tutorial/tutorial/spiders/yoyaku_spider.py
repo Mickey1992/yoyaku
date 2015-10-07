@@ -27,7 +27,7 @@ class JDramaSpider(scrapy.Spider):
             "BeanType": "rsv.bean.RSGK001BusinessLogin",
             "ViewName": "RSGK001",
             "ID": "******",
-            "PWD": "******",
+            "PWD": "****",
         }, callback=self.after_login)
 
     def after_login(self, response):
@@ -63,7 +63,8 @@ class JDramaSpider(scrapy.Spider):
                                                              "SELECT_DATA": select_data},
                                                    callback=self.usable_court,
                                                    meta={"index_court": self.index_court,
-                                                         "select_court": select_data})
+                                                         "select_court": select_data,
+                                                         "month": 0})
             self.dict_court[self.index_court] = stadium.css("::text")[0].extract().encode("utf-8")
             self.index_court += 1
 
@@ -82,7 +83,8 @@ class JDramaSpider(scrapy.Spider):
                                                          "SELECT_DATA": ""},
                                                callback=self.select_court,
                                                meta={"index_court": response.meta["index_court"],
-                                                     "select_court": response.meta["select_court"]})
+                                                     "select_court": response.meta["select_court"],
+                                                     "month": response.meta["month"]})
 
     def select_court(self, response):
         yield scrapy.FormRequest.from_response(response=response,
@@ -94,7 +96,8 @@ class JDramaSpider(scrapy.Spider):
                                                          "SELECT_DATA": response.meta["select_court"]},
                                                callback=self.usable_court,
                                                meta={"index_court": response.meta["index_court"],
-                                                     "select_court": response.meta["select_court"]})
+                                                     "select_court": response.meta["select_court"],
+                                                     "month": response.meta["month"]})
 
     def usable_court(self, response):
         filename2 = self.path + "/" + "court" + str(response.meta["index_court"]) + '.html'
@@ -110,12 +113,12 @@ class JDramaSpider(scrapy.Spider):
                                                callback=self.check_calendar,
                                                meta={"index_court": response.meta["index_court"],
                                                      "select_court": response.meta["select_court"],
-                                                     "month": 0},
+                                                     "month": response.meta["month"]},
                                                priority=0-response.meta["index_court"]*100)
 
     def check_calendar(self, response):
         page_court = response.css("div.bottom p:nth-child(2)::text")[0].extract().encode("utf-8")
-        if response.meta["month"] == 0 and page_court.find(self.dict_court.get(response.meta["index_court"])) < 0:
+        if page_court.find(self.dict_court.get(response.meta["index_court"])) < 0:
             yield scrapy.FormRequest.from_response(response=response,
                                                    formname="FRM_RSGK305",
                                                    formdata={"ISSUBMIT": "ON",
@@ -125,48 +128,42 @@ class JDramaSpider(scrapy.Spider):
                                                              "SELECT_DATA": ""},
                                                    callback=self.back_to_list,
                                                    meta={"index_court": response.meta["index_court"],
-                                                         "select_court": response.meta["select_court"]})
+                                                         "select_court": response.meta["select_court"],
+                                                         "month": response.meta["month"]})
         else:
             current_month = datetime.date.today().month
             page_month = int(re.search("\d+\D(\d+)", response.css("td.date strong::text")[0].extract()).group(1))
             interval = page_month-current_month
             if not interval == response.meta["month"]:
-                yield scrapy.FormRequest.from_response(response=response,
-                                                       formname="FRM_RSGK305",
-                                                       formdata={"ISSUBMIT": "ON",
-                                                                 "ActionType": "SEARCH_PREV1M",
-                                                                 "BeanType": "rsv.bean.RSGK305BusinessMovePage",
-                                                                 "ViewName": "RSGK305"
-                                                                 },
-                                                       callback=self.check_calendar,
-                                                       meta={"index_court": response.meta["index_court"],
-                                                             "select_court": response.meta["select_court"],
-                                                             "month": response.meta["month"]},
-                                                       priority=0-response.meta["index_court"]*100)
-                # if interval > response.meta["month"]:
-                #     yield scrapy.FormRequest.from_response(response=response,
-                #                                            formname="FRM_RSGK305",
-                #                                            formdata={"ISSUBMIT": "ON",
-                #                                                      "ActionType": "SEARCH_PREV1M",
-                #                                                      "BeanType": "rsv.bean.RSGK305BusinessMovePage",
-                #                                                      "ViewName": "RSGK305"
-                #                                                      },
-                #                                            callback=self.check_calendar,
-                #                                            meta={"index_court": response.meta["index_court"],
-                #                                                  "select_court": response.meta["select_court"],
-                #                                                  "month": response.meta["month"]})
-                # else:
-                #     yield scrapy.FormRequest.from_response(response=response,
-                #                                            formname="FRM_RSGK305",
-                #                                            formdata={"ISSUBMIT": "ON",
-                #                                                      "ActionType": "SEARCH_NEXT1M",
-                #                                                      "BeanType": "rsv.bean.RSGK305BusinessMovePage",
-                #                                                      "ViewName": "RSGK305"
-                #                                                      },
-                #                                            callback=self.check_calendar,
-                #                                            meta={"index_court": response.meta["index_court"],
-                #                                                  "select_court": response.meta["select_court"],
-                #                                                  "month": response.meta["month"]})
+                if interval > response.meta["month"]:
+                    # pre
+                    yield scrapy.FormRequest.from_response(response=response,
+                                                           formname="FRM_RSGK305",
+                                                           formdata={"ISSUBMIT": "ON",
+                                                                     "ActionType": "SEARCH_PREV1M",
+                                                                     "BeanType": "rsv.bean.RSGK305BusinessMovePage",
+                                                                     "ViewName": "RSGK305"
+                                                                     },
+                                                           callback=self.check_calendar,
+                                                           meta={"index_court": response.meta["index_court"],
+                                                                 "select_court": response.meta["select_court"],
+                                                                 "month": response.meta["month"]},
+                                                           priority=0-response.meta["index_court"]*100-30)
+                else:
+                    # next
+                    yield scrapy.FormRequest.from_response(response=response,
+                                                           formname="FRM_RSGK305",
+                                                           formdata={"ISSUBMIT": "ON",
+                                                                     "ActionType": "SEARCH_NEXT1M",
+                                                                     "BeanType": "rsv.bean.RSGK305BusinessMovePage",
+                                                                     "ViewName": "RSGK305"
+                                                                     },
+                                                           callback=self.check_calendar,
+                                                           meta={"index_court": response.meta["index_court"],
+                                                                 "select_court": response.meta["select_court"],
+                                                                 "month": response.meta["month"]},
+                                                           priority=0-response.meta["index_court"]*100-30)
+            # day
             else:
                 filename2 = self.path + "/" + "court" + str(response.meta["index_court"]) + "month" + str(page_month) + '.html'
                 with open(filename2, 'wb') as f:
@@ -202,6 +199,7 @@ class JDramaSpider(scrapy.Spider):
                                                                  "select_court": response.meta["select_court"],
                                                                  "month": response.meta["month"]+1},
                                                            priority=0-response.meta["index_court"]*100-60)
+
     def select_date_again(self, response):
         filename2 = self.path + "/" + "back-court" + str(response.meta["index_court"]) + "month" + str(response.meta["request_month"]) + '.html'
         with open(filename2, 'wb') as f:
@@ -282,6 +280,7 @@ class JDramaSpider(scrapy.Spider):
     def closed(self, reason):
         for index in range(1, self.index_court, 1):
             self.merge_file_by_court(index)
+            # self.merge_all()
 
     def merge_file_by_month(self, court, month):
         filename = self.path + "/" + str(court) + "-" + str(month) + ".txt"
@@ -317,6 +316,7 @@ class JDramaSpider(scrapy.Spider):
         folder_name = datetime.datetime.now().strftime('%Y%m%d%H%M')
         self.path += folder_name
         os.makedirs(self.path)
+
 
 
 
